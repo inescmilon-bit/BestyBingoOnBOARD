@@ -44,6 +44,7 @@
 
     .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
     .left, .right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .select { appearance: none; background: #1b244a; border: 1px solid #2a3566; color: var(--ink); padding: 10px 12px; border-radius: 12px; font-weight: 600; cursor: pointer; }
 
     .btn {
       appearance: none; border: 0; cursor: pointer; color: #0a0f22; font-weight: 600;
@@ -64,7 +65,6 @@
       border: 1px solid #2a3566; font-size: 0.98rem; line-height: 1.25; outline: none;
     }
 
-    /* Keep 3×3 grid even on phones */
     @media (max-width: 760px) {
       .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
       .cell { border-radius: 14px; padding: 10px; }
@@ -75,7 +75,6 @@
 
     .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: #11162a; border: 1px solid #2a3566; color: var(--ink); padding: 10px 14px; border-radius: 12px; box-shadow: 0 10px 24px rgba(0,0,0,0.4); display: none; z-index: 1000; }
 
-    /* Confetti animation */
     .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
     .confetti i { position: absolute; width: 8px; height: 14px; opacity: .9; animation: fall linear forwards; }
     @keyframes fall { to { transform: translateY(110vh) rotate(600deg); opacity: .85; } }
@@ -93,8 +92,16 @@
     <div class="panel">
       <div class="controls">
         <div class="left">
+          <label for="packSelect" class="muted">Bingo box:</label>
+          <select id="packSelect" class="select">
+            <option value="classic">Classic Icebreaker</option>
+            <option value="remote">Remote & Hybrid</option>
+            <option value="tech">Tech & Tools</option>
+            <option value="fun">Fun Facts</option>
+            <option value="wellness">Wellness</option>
+          </select>
           <button id="copyLink" class="btn">Copy my link</button>
-          <button id="reset" class="btn secondary">Clear all answers</button>
+          <button id="reset" class="btn secondary">Clear answers</button>
         </div>
         <div class="right">
           <button id="zoomOut" class="btn secondary">A−</button>
@@ -123,21 +130,31 @@
       return id;
     }
     const ID = ensureIdInUrl();
-    const STORAGE_KEY = `bingo_${ID}`;
+    const PACK_KEY = `pack_${ID}`;
+    let pack = localStorage.getItem(PACK_KEY) || 'classic';
+    function STORAGE_KEY(){ return `bingo_${ID}_${pack}`; }
 
-    // --- Prompts ---
-    const PROMPTS = [
-      'Has been working here for more than 5 years','Was born in the same month as you','Whos favorite season is Winter','Can play a musical instrument','Has a pet at home','Speaks more than three languages','Prefers tea over coffee','Enjoys hiking or outdoor sports','Has the same favorite color as you','Has run a race (5k, marathon, etc.)','Can recite part of a movie by heart','Knows a good dad joke (Let's hear it!)','Has binge-watched a whole series in a weekend','Has a hidden talent (ask what it is!)','Loves reading books in English','Can whistle a tune'];
+    // --- Bingo Packs ---
+    const PACKS = {
+      classic: [
+        'Has been working here for more than 5 years','Was born in the same month as you','Whos favorite season is Spring','Can play a musical instrument','Joined the company this year','Speaks more than three languages','Has a pet at home','Enjoys hiking or outdoor sports','Has the same favorite color as you'
+      ],
+      fun: [
+        'Can juggle (even a little)','Has a movie they can quote start-to-finish','Knows a magic trick','Has run a race (5k, marathon, etc.)','Has met a celebrity','Has a hidden talent (ask what it is!)','Can solve a Rubik’s Cube','Plays a board game weekly','Knows a great dad joke'
+      ],
+      wellness: [
+        'Meditates weekly','Drinks 2L of water daily','Loves reading in English','Has binge-watched a whole series in a weekend','Practices yoga or pilates','Prefers tea over coffee','Can bake bread',
+      ]
+    };
 
-    // --- Seeded shuffle (stable per ID) ---
+    // --- Seeded shuffle ---
     function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19;}return function(){h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return(h^h>>>16)>>>0;}}
     function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}}
     function shuffleStable(arr, seedStr){const rng=mulberry32(xmur3(seedStr)());const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
 
     // --- Build grid ---
     const grid=document.getElementById('grid');
-    const shuffled=shuffleStable(PROMPTS,ID);
-    const SIZE = 3; // 3×3 grid
+    const SIZE = 3;
     function cellTemplate(idx,prompt,val=''){
       const cell=document.createElement('div');cell.className='cell';
       cell.innerHTML=`<h3>#${idx+1}</h3><p>${prompt}</p>`;
@@ -148,29 +165,34 @@
     }
 
     function handleInput(e){
-      const data=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+      const key = STORAGE_KEY();
+      const data=JSON.parse(localStorage.getItem(key)||'{}');
       data[e.target.dataset.index]=e.target.value;
-      localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+      localStorage.setItem(key,JSON.stringify(data));
       checkWin();
     }
 
     function render(){
-      const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+      const prompts = PACKS[pack] || PACKS.classic;
+      const shuffled = shuffleStable(prompts, ID + '|' + pack);
+      const saved=JSON.parse(localStorage.getItem(STORAGE_KEY())||'{}');
       grid.innerHTML='';
-      for(let i=0;i<SIZE*SIZE;i++){grid.appendChild(cellTemplate(i,shuffled[i],saved[i]||''));}
+      for(let i=0;i<SIZE*SIZE;i++){
+        grid.appendChild(cellTemplate(i,shuffled[i],saved[i]||''));
+      }
+      document.getElementById('packSelect').value = pack;
+      document.getElementById('cardId').textContent = (ID.slice(0,8)+':' + pack);
     }
 
-    // --- Win detection + celebration ---
+    // --- Win detection ---
     function checkWin(){
-      const data = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-      const total = SIZE*SIZE; // 9
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY())||'{}');
+      const total = SIZE*SIZE;
       const filled = Array.from({length: total},(_,i)=>!!(data[i]&&String(data[i]).trim()));
-      // Rows
       for(let r=0;r<SIZE;r++){
         const row = filled.slice(r*SIZE, r*SIZE+SIZE);
         if(row.every(Boolean)){ celebrate('Row complete! BESTy!'); return; }
       }
-      // Columns
       for(let c=0;c<SIZE;c++){
         if([filled[c],filled[c+SIZE],filled[c+SIZE*2]].every(Boolean)){ celebrate('Column complete! BESTy!'); return; }
       }
@@ -199,7 +221,6 @@
       setTimeout(()=>{ host.innerHTML=''; }, 3500);
     }
 
-    // --- Toast ---
     function toast(msg){
       const el=document.getElementById('toast');
       el.textContent=msg;
@@ -208,10 +229,10 @@
       toast._t=setTimeout(()=>el.style.display='none',1600);
     }
 
-    // --- Header controls ---
-    document.getElementById('cardId').textContent=ID.slice(0,8);
+    // --- Controls ---
     document.getElementById('copyLink').onclick=()=>navigator.clipboard.writeText(location.href).then(()=>toast('Link copied'));
-    document.getElementById('reset').onclick=()=>{if(confirm('Clear all answers?')){localStorage.removeItem(STORAGE_KEY);render();}};
+    document.getElementById('reset').onclick=()=>{if(confirm('Clear all answers on this box?')){localStorage.removeItem(STORAGE_KEY());render();}};
+    document.getElementById('packSelect').onchange=(e)=>{ pack = e.target.value; localStorage.setItem(PACK_KEY, pack); render(); };
 
     const SCALE_KEY=`ui_scale_${ID}`;
     let scale=parseFloat(localStorage.getItem(SCALE_KEY)||'1');
