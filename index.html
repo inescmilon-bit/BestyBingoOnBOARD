@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Find Someone Who… — BESTy Bingo</title>
-  <meta name="description" content="A private, per-person 4×4 bingo card that saves locally on your device." />
+  <meta name="description" content="A private, per-person 3×3 bingo card that saves locally on your device." />
   <style>
     :root {
       --bg: #0b1020;
@@ -53,7 +53,7 @@
     .btn.secondary { color: var(--ink); background: #1b244a; border: 1px solid #2a3566; }
     .btn:active { transform: translateY(1px); }
 
-    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 
     .cell { background: var(--card); border-radius: 16px; padding: 12px; display: grid; grid-template-rows: auto 1fr; gap: 8px; border: 1px solid #1f2954; }
     .cell h3 { margin: 0; font-size: clamp(0.9rem, 2.1vw, 1.02rem); color: var(--accent-2); font-weight: 700; }
@@ -64,9 +64,9 @@
       border: 1px solid #2a3566; font-size: 0.98rem; line-height: 1.25; outline: none;
     }
 
-    /* Keep 4×4 grid even on phones */
+    /* Keep 3×3 grid even on phones */
     @media (max-width: 760px) {
-      .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+      .grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
       .cell { border-radius: 14px; padding: 10px; }
       .cell h3 { font-size: 0.88rem; }
       .cell p { font-size: 0.86rem; }
@@ -127,7 +127,7 @@
 
     // --- Prompts ---
     const PROMPTS = [
-      'Has been working here for more than 10 years','Was born in the same month as you','Has visited more than 5 countries','Can play a musical instrument','Joined the company this year','Speaks more than two languages','Has a pet at home','Enjoys hiking or outdoor sports','Has the same favorite color as you','Loves Italian Espresso ristretto','Has traveled outside of Europe','Can cook Pasta alla Nerano','Knows more than 3 of the new BESTy Ambassadors personally','Has a hidden talent (ask what it is!)','Loves reading books in English','Has run a marathon or other race'];
+      'Has been working here for more than 5 years','Was born in the same month as you','Whos favorite season is Winter','Can play a musical instrument','Has a pet at home','Speaks more than three languages','Prefers tea over coffee','Enjoys hiking or outdoor sports','Has the same favorite color as you','Has run a race (5k, marathon, etc.)','Can recite part of a movie by heart','Knows a good dad joke (Let's hear it!)','Has binge-watched a whole series in a weekend','Has a hidden talent (ask what it is!)','Loves reading books in English','Can whistle a tune'];
 
     // --- Seeded shuffle (stable per ID) ---
     function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19;}return function(){h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return(h^h>>>16)>>>0;}}
@@ -137,6 +137,7 @@
     // --- Build grid ---
     const grid=document.getElementById('grid');
     const shuffled=shuffleStable(PROMPTS,ID);
+    const SIZE = 3; // 3×3 grid
     function cellTemplate(idx,prompt,val=''){
       const cell=document.createElement('div');cell.className='cell';
       cell.innerHTML=`<h3>#${idx+1}</h3><p>${prompt}</p>`;
@@ -156,18 +157,22 @@
     function render(){
       const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
       grid.innerHTML='';
-      for(let i=0;i<16;i++){grid.appendChild(cellTemplate(i,shuffled[i],saved[i]||''));}
+      for(let i=0;i<SIZE*SIZE;i++){grid.appendChild(cellTemplate(i,shuffled[i],saved[i]||''));}
     }
 
     // --- Win detection + celebration ---
     function checkWin(){
       const data = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
-      const filled = Array.from({length:16},(_,i)=>!!(data[i]&&String(data[i]).trim()));
-      for(let r=0;r<4;r++){
-        if(filled.slice(r*4,r*4+4).every(Boolean)){ celebrate('Row complete! BESTy!'); return; }
+      const total = SIZE*SIZE; // 9
+      const filled = Array.from({length: total},(_,i)=>!!(data[i]&&String(data[i]).trim()));
+      // Rows
+      for(let r=0;r<SIZE;r++){
+        const row = filled.slice(r*SIZE, r*SIZE+SIZE);
+        if(row.every(Boolean)){ celebrate('Row complete! BESTy!'); return; }
       }
-      for(let c=0;c<4;c++){
-        if([filled[c],filled[c+4],filled[c+8],filled[c+12]].every(Boolean)){ celebrate('Column complete! BESTy!'); return; }
+      // Columns
+      for(let c=0;c<SIZE;c++){
+        if([filled[c],filled[c+SIZE],filled[c+SIZE*2]].every(Boolean)){ celebrate('Column complete! BESTy!'); return; }
       }
     }
 
