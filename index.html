@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Find Someone Who… — BESTy Bingo</title>
+  <meta name="description" content="A private, per-person 4×4 bingo card that saves locally on your device." />
+  <style>
+    :root {
+      --bg: #0b1020;
+      --card: #11162a;
+      --ink: #e8ebff;
+      --muted: #b7c0ff;
+      --accent: #7aa2ff;
+      --accent-2: #9ef0b8;
+      --ui-scale: 1;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+      background: radial-gradient(1200px 800px at 85% -10%, #1a2040 0%, var(--bg) 60%);
+      color: var(--ink);
+      display: grid;
+      place-items: start center;
+      padding: 28px 16px 80px;
+    }
+    .app { width: min(1100px, 100%); transform: scale(var(--ui-scale)); transform-origin: top center; position: relative; }
+    .mascot { position: absolute; top: -10px; right: -10px; width: 90px; max-width: 20vw; }
+
+    header { display: grid; gap: 8px; margin-bottom: 18px; }
+    h1 { font-size: clamp(1.4rem, 3.6vw, 2.2rem); margin: 0; }
+    .subtitle { color: var(--muted); line-height: 1.5; font-size: clamp(0.95rem, 2.2vw, 1.05rem); }
+
+    .panel {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.07)) padding-box,
+                  linear-gradient(140deg, rgba(255,255,255,0.25), rgba(255,255,255,0.05)) border-box;
+      border: 1px solid transparent;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      padding: 14px;
+    }
+
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .left, .right { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    .btn {
+      appearance: none; border: 0; cursor: pointer; color: #0a0f22; font-weight: 600;
+      background: linear-gradient(180deg, var(--accent), #4c76ff);
+      padding: 10px 14px; border-radius: 12px; transition: transform .05s ease, filter .15s ease;
+    }
+    .btn.secondary { color: var(--ink); background: #1b244a; border: 1px solid #2a3566; }
+    .btn:active { transform: translateY(1px); }
+
+    .grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+
+    .cell { background: var(--card); border-radius: 16px; padding: 12px; display: grid; grid-template-rows: auto 1fr; gap: 8px; border: 1px solid #1f2954; }
+    .cell h3 { margin: 0; font-size: clamp(0.9rem, 2.1vw, 1.02rem); color: var(--accent-2); font-weight: 700; }
+    .cell p { margin: 0; color: var(--muted); font-size: 0.92rem; line-height: 1.35; }
+    .cell textarea {
+      width: 100%; min-height: 58px; resize: vertical; max-height: 160px;
+      padding: 10px; border-radius: 10px; background: #0d132a; color: var(--ink);
+      border: 1px solid #2a3566; font-size: 0.98rem; line-height: 1.25; outline: none;
+    }
+
+    /* Keep 4×4 grid even on phones */
+    @media (max-width: 760px) {
+      .grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+      .cell { border-radius: 14px; padding: 10px; }
+      .cell h3 { font-size: 0.88rem; }
+      .cell p { font-size: 0.86rem; }
+      .cell textarea { min-height: 48px; font-size: 0.95rem; }
+    }
+
+    .toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); background: #11162a; border: 1px solid #2a3566; color: var(--ink); padding: 10px 14px; border-radius: 12px; box-shadow: 0 10px 24px rgba(0,0,0,0.4); display: none; z-index: 1000; }
+
+    /* Confetti animation */
+    .confetti { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+    .confetti i { position: absolute; width: 8px; height: 14px; opacity: .9; animation: fall linear forwards; }
+    @keyframes fall { to { transform: translateY(110vh) rotate(600deg); opacity: .85; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <img src="mascot.png" alt="Mascot" class="mascot" />
+    <header>
+      <div><span class="badge">Find Someone Who…</span></div>
+      <h1>BESTy Bingo</h1>
+      <p class="subtitle panel" id="instructions">Walk around the room and talk with your colleagues. Try to find people who match the descriptions below. <strong>Write their names in the boxes.</strong> The first ones to complete a row or a column shout <strong>“BESTy!”</strong></p>
+    </header>
+
+    <div class="panel">
+      <div class="controls">
+        <div class="left">
+          <button id="copyLink" class="btn">Copy my link</button>
+          <button id="reset" class="btn secondary">Clear all answers</button>
+        </div>
+        <div class="right">
+          <button id="zoomOut" class="btn secondary">A−</button>
+          <button id="zoomIn" class="btn secondary">A+</button>
+          <span class="muted">Card ID:</span>
+          <code id="cardId" class="muted"></code>
+        </div>
+      </div>
+      <div id="grid" class="grid"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast">Copied link</div>
+  <div id="confetti" class="confetti" aria-hidden="true"></div>
+
+  <script>
+    // --- Stable per-person ID in the URL ---
+    function ensureIdInUrl() {
+      const url = new URL(location.href);
+      let id = url.searchParams.get('id');
+      if (!id) {
+        id = crypto.randomUUID ? crypto.randomUUID() : Date.now()+'';
+        url.searchParams.set('id', id);
+        history.replaceState(null, '', url);
+      }
+      return id;
+    }
+    const ID = ensureIdInUrl();
+    const STORAGE_KEY = `bingo_${ID}`;
+
+    // --- Prompts ---
+    const PROMPTS = [
+      'Has been working here for more than 10 years','Was born in the same month as you','Has visited more than 5 countries','Can play a musical instrument','Joined the company this year','Speaks more than two languages','Has a pet at home','Enjoys hiking or outdoor sports','Has the same favorite color as you','Loves Italian Espresso ristretto','Has traveled outside of Europe','Can cook Pasta alla Nerano','Knows more than 3 of the new BESTy Ambassadors personally','Has a hidden talent (ask what it is!)','Loves reading books in English','Has run a marathon or other race'];
+
+    // --- Seeded shuffle (stable per ID) ---
+    function xmur3(str){let h=1779033703^str.length;for(let i=0;i<str.length;i++){h=Math.imul(h^str.charCodeAt(i),3432918353);h=h<<13|h>>>19;}return function(){h=Math.imul(h^h>>>16,2246822507);h=Math.imul(h^h>>>13,3266489909);return(h^h>>>16)>>>0;}}
+    function mulberry32(a){return function(){let t=a+=0x6D2B79F5;t=Math.imul(t^t>>>15,t|1);t^=t+Math.imul(t^t>>>7,t|61);return((t^t>>>14)>>>0)/4294967296;}}
+    function shuffleStable(arr, seedStr){const rng=mulberry32(xmur3(seedStr)());const a=[...arr];for(let i=a.length-1;i>0;i--){const j=Math.floor(rng()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+
+    // --- Build grid ---
+    const grid=document.getElementById('grid');
+    const shuffled=shuffleStable(PROMPTS,ID);
+    function cellTemplate(idx,prompt,val=''){
+      const cell=document.createElement('div');cell.className='cell';
+      cell.innerHTML=`<h3>#${idx+1}</h3><p>${prompt}</p>`;
+      const ta=document.createElement('textarea');
+      ta.value=val;ta.dataset.index=idx;ta.placeholder='Write a name…';
+      ta.addEventListener('input',handleInput);
+      cell.appendChild(ta);return cell;
+    }
+
+    function handleInput(e){
+      const data=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+      data[e.target.dataset.index]=e.target.value;
+      localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+      checkWin();
+    }
+
+    function render(){
+      const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+      grid.innerHTML='';
+      for(let i=0;i<16;i++){grid.appendChild(cellTemplate(i,shuffled[i],saved[i]||''));}
+    }
+
+    // --- Win detection + celebration ---
+    function checkWin(){
+      const data = JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}');
+      const filled = Array.from({length:16},(_,i)=>!!(data[i]&&String(data[i]).trim()));
+      for(let r=0;r<4;r++){
+        if(filled.slice(r*4,r*4+4).every(Boolean)){ celebrate('Row complete! BESTy!'); return; }
+      }
+      for(let c=0;c<4;c++){
+        if([filled[c],filled[c+4],filled[c+8],filled[c+12]].every(Boolean)){ celebrate('Column complete! BESTy!'); return; }
+      }
+    }
+
+    function celebrate(msg){ toast(msg); confettiBurst(); }
+
+    function confettiBurst(){
+      const host = document.getElementById('confetti');
+      host.innerHTML='';
+      const colors=['#7aa2ff','#9ef0b8','#ffd166','#ff71a6','#c4b5fd'];
+      const n=80;
+      for(let i=0;i<n;i++){
+        const p=document.createElement('i');
+        const left=Math.random()*100;
+        const dur=1.8+Math.random()*1.6;
+        const delay=Math.random()*0.15;
+        p.style.left=left+'%';
+        p.style.top='-10px';
+        p.style.background=colors[i%colors.length];
+        p.style.transform=`translateY(-10px) rotate(${Math.random()*360}deg)`;
+        p.style.animationDuration=dur+'s';
+        p.style.animationDelay=delay+'s';
+        host.appendChild(p);
+      }
+      setTimeout(()=>{ host.innerHTML=''; }, 3500);
+    }
+
+    // --- Toast ---
+    function toast(msg){
+      const el=document.getElementById('toast');
+      el.textContent=msg;
+      el.style.display='block';
+      clearTimeout(toast._t);
+      toast._t=setTimeout(()=>el.style.display='none',1600);
+    }
+
+    // --- Header controls ---
+    document.getElementById('cardId').textContent=ID.slice(0,8);
+    document.getElementById('copyLink').onclick=()=>navigator.clipboard.writeText(location.href).then(()=>toast('Link copied'));
+    document.getElementById('reset').onclick=()=>{if(confirm('Clear all answers?')){localStorage.removeItem(STORAGE_KEY);render();}};
+
+    const SCALE_KEY=`ui_scale_${ID}`;
+    let scale=parseFloat(localStorage.getItem(SCALE_KEY)||'1');
+    document.documentElement.style.setProperty('--ui-scale',scale);
+    document.getElementById('zoomIn').onclick=()=>{scale=Math.min(1.2,scale+0.05);document.documentElement.style.setProperty('--ui-scale',scale);localStorage.setItem(SCALE_KEY,scale);};
+    document.getElementById('zoomOut').onclick=()=>{scale=Math.max(0.85,scale-0.05);document.documentElement.style.setProperty('--ui-scale',scale);localStorage.setItem(SCALE_KEY,scale);};
+
+    // --- Init ---
+    render();
+    checkWin();
+  </script>
+</body>
+</html>
